@@ -1,6 +1,6 @@
-/* ka10_cp.c: PDP10 Card Punch
+/* kx10_cp.c: PDP10 Card Punch
 
-   Copyright (c) 2016-2017, Richard Cornwell
+   Copyright (c) 2016-2020, Richard Cornwell
 
    Permission is hereby granted, free of charge, to any person obtaining a
    copy of this software and associated documentation files (the "Software"),
@@ -34,7 +34,7 @@
 #include "sim_defs.h"
 #if (NUM_DEVS_CP > 0)
 
-#define UNIT_CDP        UNIT_ATTABLE | UNIT_DISABLE | MODE_029
+#define UNIT_CDP        UNIT_ATTABLE | UNIT_DISABLE | UNIT_SEQ | MODE_026 
 
 #define CP_DEVNUM        0110
 
@@ -92,7 +92,7 @@ uint16              cp_buffer[80];
 
 DIB cp_dib = { CP_DEVNUM, 1, cp_devio, NULL};
 
-UNIT                cp_unit = {UDATA(cp_srv, UNIT_CDP, 0), 600 };
+UNIT                cp_unit = {UDATA(cp_srv, UNIT_CDP, 0), 2000 };
 
 MTAB                cp_mod[] = {
     {MTAB_XTD | MTAB_VUN, 0, "FORMAT", "FORMAT",
@@ -101,7 +101,7 @@ MTAB                cp_mod[] = {
 };
 
 REG                 cp_reg[] = {
-    {BRDATA(BUFF, cp_buffer, 16, 16, sizeof(cp_buffer)), REG_HRO},
+    {BRDATA(BUFF, cp_buffer, 16, 16, sizeof(cp_buffer)/sizeof(uint16)), REG_HRO},
     {0}
 };
 
@@ -121,6 +121,7 @@ DEVICE              cp_dev = {
 
 t_stat cp_devio(uint32 dev, uint64 *data) {
      UNIT                *uptr = &cp_unit;
+     uint16              col;
 
      switch(dev & 3) {
      case CONI:
@@ -170,7 +171,24 @@ t_stat cp_devio(uint32 dev, uint64 *data) {
          *data = 0;
          break;
     case DATAO:
-         cp_buffer[uptr->COL++] = *data & 0xfff;
+         col = *data & 0xfff;
+         switch(col) {
+         case 04006: col = 03000; break; /* ! - */
+         case 01022: col = 00006; break; /* " - */
+         case 01012: col = 01202; break; /* # - */
+         case 01006: col = 01042; break; /* % - */
+         case 02006: col = 05000; break; /* & - */
+         case 00012: col = 00042; break; /* ' - */
+         case 03000: col = 00022; break; /* : - */
+         case 01202: col = 02012; break; /* ; - */
+         case 02012: col = 00012; break; /* > - */
+         case 05000: col = 04202; break; /* ? - */
+         case 02022: col = 04022; break; /* [ - */
+         case 00006: col = 01012; break; /* \ - */
+         case 04022: col = 02022; break; /* ] - */
+         case 00022: col = 00202; break; /* ^ - */
+         }
+         cp_buffer[uptr->COL++] = col;
          uptr->STATUS &= ~DATA_REQ;
          clr_interrupt(dev);
          sim_debug(DEBUG_DATAIO, &cp_dev, "CP: DATAO %012llo %d\n", *data,
@@ -228,6 +246,7 @@ cp_srv(UNIT *uptr) {
 t_stat
 cp_attach(UNIT * uptr, CONST char *file)
 {
+    sim_switches |= SWMASK ('A');   /* Position to EOF */
     return sim_card_attach(uptr, file);
 }
 

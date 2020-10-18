@@ -31,8 +31,7 @@
 #ifndef _3B2_NI_H_
 #define _3B2_NI_H_
 
-#include "3b2_defs.h"
-#include "3b2_io.h"
+#include "sim_defs.h"
 #include "sim_ether.h"
 
 #define NI_ID                  0x0002
@@ -54,10 +53,7 @@
 
 #define NIQESIZE               12
 #define NI_QUE_MAX             1024
-#define NI_TMR_WAIT_DEFAULT    3000
-#define NI_RCV_POLL_US         8000
-#define NI_XMIT_DELAY_US       60000
-#define NI_INT_DELAY_US        500
+#define NI_INT_DELAY           10000
 #define NI_SANITY_INTERVAL_US  5000000
 
 /* Maximum allowed number of multicast addresses */
@@ -88,9 +84,6 @@
 #define NI_QPOLL_FAST          100
 #define NI_QPOLL_SLOW          50000
 
-#define NI_DIAG_CRC1           0x795268a4
-#define NI_DIAG_CRC2           0xfab1057c
-#define NI_DIAG_CRC3           0x10ca00cd
 #define NI_PUMP_CRC1           0xfab1057c
 #define NI_PUMP_CRC2           0xf6744bed
 
@@ -105,9 +98,9 @@
  * packets up to 1500 bytes (no jumbo frames allowed)
  */
 
-#define GE_QUEUE       0         /* General request queue      */
-#define SM_QUEUE       1         /* Small packet receive queue */
-#define LG_QUEUE       2         /* Large packet receive queue */
+#define GE_QUEUE       0         /* General request CIO queue */
+#define SM_QUEUE       0         /* Small packet receive queue number */
+#define LG_QUEUE       1         /* Large packet receive queue number */
 #define SM_PKT_MAX     106       /* Max size of small packets (excluding CRC) */
 #define LG_PKT_MAX     1514      /* Max size of large packets (excluding CRC) */
 
@@ -124,6 +117,9 @@
 #define CHAR(c)   ((((c) >= 0x20) && ((c) < 0x7f)) ? (c) : '.')
 
 #define NI_CACHE_HAS_SPACE(i) (((ni.job_cache[(i)].wp + 1) % NI_CACHE_LEN) != ni.job_cache[(i)].rp)
+/* Determine whether both job caches have available slots */
+#define NI_BUFFERS_AVAIL      ((ni.job_cache[0].wp != ni.job_cache[0].rp) && \
+                               (ni.job_cache[1].wp != ni.job_cache[1].rp))
 
 /*
  * The NI card caches up to three jobs taken from each of the two
@@ -186,13 +182,10 @@ typedef struct {
     ETH_DEV*        eth;
     ETH_PACK        rd_buf;
     ETH_PACK        wr_buf;
-    ETH_QUE         readq;
     ETH_MAC         macs[NI_FILTER_MAX];    /* List of all filter addresses */
     int             filter_count;           /* Number of filters available */
     ETH_PCALLBACK   callback;
 } NI_STATE;
-
-extern DEVICE ni_dev;
 
 void ni_recv_callback(int status);
 t_stat ni_reset(DEVICE *dptr);
